@@ -120,11 +120,31 @@ Qオブジェクトを使用することで`OR`や`NOT`の条件を満たすこ�
 
 # デメリット
 ・クエリセットのためのコードが長くなるため、複雑なクエリになると可読性が下がる。
-・Qオブジェクトを純粋なlookup関数を使用すると正しくクエリが生成されない。
+
+・Qオブジェクトの前に純粋なlookup関数を使用すると正しくクエリが生成されない。
+
+*lookup関数とは
+```python
+# この形をとるDjangoのfilterメソッドの基本形
+QuerySet.objects.filter(フィールド名__lookup="value")
 ```
+
+<br>
+
+NG例
+```python
 #Qが後に来ているので、NG
 Poll.objects.get(
     question__startswith='Who',
     Q(pub_date=date(2005, 5, 2)) | Q(pub_date=date(2005, 5, 6))
+)
+```
+
+正しい例
+```python
+#Qが先に来ているので、OK
+Poll.objects.get(
+    Q(pub_date=date(2005, 5, 2)) | Q(pub_date=date(2005, 5, 6)),
+    question__startswith='Who',
 )
 ```
