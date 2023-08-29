@@ -98,7 +98,9 @@ class Item(Models.Model):
     objects = ItemQuerySet.as_manager()
 ```
 
-managerをQuerySetメソッド(filter()やall()と同義)と扱うため、重ねて使用できる
+通常のmanagerは複数のメソッドを重ねて使うことができない
+
+`as_manager`を使用することで、managerをQuerySetメソッド(filter()やall()と同義)と扱うため、重ねて使用できる
 
 ```python
 # 複数のメソッドを重ねて利用
@@ -225,3 +227,46 @@ class IsDeletedManager(models.Manager):
 ・querysetはManagerManagerから呼び出されるオブジェクトを表す
 
 そのため、querysetはview.pyにて処理のたびにクエリを書き込む必要があるが、マネージャーを使用することで、処理の共通化やviewの可読性の向上につながる
+
+<br>
+
+# querysetのカスタマイズ
+QuerySetのサブクラスを作成することで、QuerySetも同様にカスタマイズすることが可能
+サブクラスの定義には`django.db.models.query.QuerySet`を継承する
+## カスタムメソッドを追加
+```python
+# querysets.py
+from django.db.models.query import QuerySet
+
+# サブクラス
+class QuerySetByIsDeleted(QuerySet):
+    def notDeleted(self):
+        # 削除されていないデータのみ取得
+        return self.filter(is_deleted=false)
+```
+これをモデルに追加することでカスタムメソッドを使用可能
+
+```python
+#model.py
+
+from django.db import models
+from myapp.querysets import QuerySetByIsDeleted
+
+class ArticleManager(models.Manager):
+    def get_queryset(self):
+        return QuerySetByIsDeleted(self.model, using=self._db)
+
+class Article(models.Model):
+    name = models.CharField(max_length=255)
+    is_deleted = models.BooleanField(default=False)
+    exist = models.ArticleManager()
+    objects = models.Manager()
+```
+
+追加した`exist()`はクエリセットとして使用することができる
+```python
+# view.py
+
+# is_deleted = Trueのデータを全件取得
+queryset = Article.exist.all()
+```
