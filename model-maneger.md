@@ -32,7 +32,7 @@ from django.db import models
 
 class ArticleManager(models.Manager):
     def active(self):
-        return self.filter(is_deleted=True)
+        return self.filter(is_deleted=False)
 
 class Article(models.Model):
     is_deleted = models.BooleanField(default=False)
@@ -48,7 +48,7 @@ class Article(models.Model):
 queryset = Article.objects.active()
 
 # active()を使用しない場合
-queryset = Article.objects.filter(is_deleted=True)
+queryset = Article.objects.filter(is_deleted=False)
 ```
 さらに複雑なクエリになる場合、メソッドを追加することで簡潔に書くことができる
 
@@ -64,7 +64,7 @@ class UserManager(BaseUserManager):
  
     def active(self):
         """アクティブユーザーを取得"""
-        return self.filter(is_active=True)
+        return self.filter(is_active=False)
  
 class User(AbstractUser):
     objects = UserManager()
@@ -100,7 +100,7 @@ class Item(Models.Model):
 
 通常のmanagerは複数のメソッドを重ねて使うことができない
 
-`as_manager`を使用することで、managerをQuerySetメソッド(filter()やall()と同義)と扱うため、重ねて使用できる
+`as_manager`を使用することで、QuerySetをManagerのように扱うため、重ねて使用できる
 
 ```python
 # 複数のメソッドを重ねて利用
@@ -144,8 +144,8 @@ from django.utils import timezone
 
 class ArticleManager(models.Model):
     def active(self):
-        # is_deleted = Trueのデータのみ取得
-        return self.filter(is_deleted=True)
+        # is_deleted = Falseのデータのみ取得
+        return self.filter(is_deleted=False)
 
 class Article(models.Model):
     name = models.TextField()
@@ -154,7 +154,7 @@ class Article(models.Model):
     modified = models.DateTimeField(default=timezone.now)
 
     # ArticleManagerをデフォルトに設定する
-    objects.ArticleManager()
+    objects = ArticleManager()
 ```
 
 ## DB
@@ -192,16 +192,10 @@ articles = Article.objects.active().all()
 ```json
 {
     {
-        "id" : 1,
-        "contents" : "testContents1",
-        "is_deleted" : true,
-        "modified" : "2020-12-21 12:00:00",
-    },
-    {
-        "id" : 2,
-        "contents" : "testContents2",
-        "is_deleted" : true,
-        "modified" : "2021-03-22 3:32:26"
+        "id" : 3,
+        "contents" : "testContents3",
+        "is_deleted" : false,
+        "modified" : "2022-09-03 18:54:03"
     },
 }
 ```
@@ -224,10 +218,15 @@ class IsDeletedManager(models.Manager):
 
 ・ManagerはModelのクエリ操作を提供するインターフェース
 
-・querysetはManagerManagerから呼び出されるオブジェクトを表す
+・QuerySetAPIはデータベース操作をおこなうためのインターフェースを提供するメソッド
 
-そのため、querysetはview.pyにて処理のたびにクエリを書き込む必要があるが、マネージャーを使用することで、処理の共通化やviewの可読性の向上につながる
+・QuerysetオブジェクトはManagerManagerから呼び出されるオブジェクトを表す
 
+<br>
+
+ManagerでQuerySetAPIを叩くとQuerySetオブジェクトが返ってくる
+
+両社の違いとしては、Managerはクエリを操作するインターフェースであり、QuerySetは取得したデータの操作を行うインターフェースである。
 <br>
 
 # querysetのカスタマイズ
@@ -240,9 +239,9 @@ from django.db.models.query import QuerySet
 
 # サブクラス
 class QuerySetByIsDeleted(QuerySet):
-    def notDeleted(self):
+    def active(self):
         # 削除されていないデータのみ取得
-        return self.filter(is_deleted=false)
+        return self.filter(is_deleted=False)
 ```
 これをモデルに追加することでカスタムメソッドを使用可能
 
@@ -259,14 +258,20 @@ class ArticleManager(models.Manager):
 class Article(models.Model):
     name = models.CharField(max_length=255)
     is_deleted = models.BooleanField(default=False)
-    exist = models.ArticleManager()
+
+    # カスタムマネージャー
+    exist = ArticleManager()
+
+    # デフォルトのマネージャ
     objects = models.Manager()
 ```
 
-追加した`exist()`はクエリセットとして使用することができる
+追加した`exist()`はカスタムマネージャーとして使用することができる
 ```python
 # view.py
 
 # is_deleted = Trueのデータを全件取得
 queryset = Article.exist.all()
 ```
+
+`exist()`をマネージャとしてデータを取得している
