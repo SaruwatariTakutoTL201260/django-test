@@ -138,19 +138,19 @@ User = get_user_model()
 ```json:seed.json
 {
     {
-        "username" : testUserName1,
+        "username" : "testUserName1",
         "email" : "test1@gmail",
         "password" : "testPassword",
         "is_active" : true,
     },
     {
-        "username" : testUserName2,
+        "username" : "testUserName2",
         "email" : "test2@gmail",
         "password" : "testPassword",
         "is_active" : true,
     },
     {
-        "username" : testUserName3,
+        "username" : "testUserName3",
         "email" : "test3@gmail",
         "password" : "testPassword",
         "is_active" : false,
@@ -174,6 +174,7 @@ login画面にて以下の通りにユーザ名とパスワードを入れてみ
 |1|成功|
 |2|ValidationError("ユーザ名またはパスワードが正しくありません")|
 |3|ValidationError("アカウントが無効です")|
+
 3に関しては`is_active`が`false`なため認証に失敗している
 
 <br>
