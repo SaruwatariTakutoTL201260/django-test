@@ -217,6 +217,146 @@ from django.import forms
 from django.contrib.auth.forms import AuthenticationForm
 from django.contrib.auth.models import User
 
-class 
+class EmailAuthenticationForm(Form):
+    email = EmailField(
+        label=('Email'), widget=forms.EmailInput(attrs={'autofocus': True,})
+    )
+    password = forms.CharField(
+        label = ("Password"),
+        strip = False,
+        widget = forms.PasswordInput,
+    )
+    
+    # コンストラクタ
+    def _init_(self, request=None, *args, **kwargs):
+        self.request = request
+        self.user_cache = None
+        kwargs.setdefault('label_suffix', '')
+        super().__init__(*args, **kwargs)
 
+        # 認証を'email'に変更
+        self.email_field = UserModel.__meta.get_field(UserModel.USERNAME_FIELD)
+        self.field['email'].max_length = self.email_field.max_length or 254
+        if self.fields['email'].label is None:
+            # Emailフィールドに変更
+            self.fields['email'].label = capfirst(self.email_field.verbose_name)
+        for field in self.fields.values():
+            field.widget.attrs["class"] = "form_control"
+            field.widget.attrs["placeholder"] = field.label
+
+    def clean(self)_:
+        email = self.cleaned_data.get('email')
+        password = self.cleaned_data.get('password')
+
+        if email is None and password:
+            self.user_cache = authenticate(self.request, email=email, password=password)
+            if self.user_cache is None:
+                raise self.get_invalid_login_error()
+            else:
+                self.confirm_login_allowd(self.user_cache)
+
+        return self.cleaned_data
+
+    def confirm_login_allowed(self, user):
+        if not user.is_active:
+            raise forms.ValidationError(
+                self.error_messages['inactive'],
+                code='inactive'
+            )
+
+    def get_user(self):
+        return self.user_cache
+
+    def get_invalid_login_error(self):
+        return forms.ValidationError(
+            self.error_message['invalid_login'],
+            code='invalid_login',
+            params={'username': _('Email')},
+        )
 ```
+
+このような変更により、`username`と`password`による認証から、`email`と`password`による認証に変更できる。
+
+<br>
+
+# トークン認証について
+トークンを用いる場合はDRF(Django REST Framework)を用いるのが一般的
+
+Djangoの標準認証はToken認証に適していないためDRFを使用する
+
+<br>
+
+# DRFでの認証について
+## Authの種類について
+1,Basic Authentication  
+2,Token Authentication  
+3,SessionAuthentication  
+4,JWT(JSON Web Token)  
+
+<br>
+
+## BasicAuthenticationの例
+settings.pyに`BasicAuthentication`を追加
+```python
+#settings.py
+
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.BasicAuthentication',
+        'rest_framework.authentication.SessionAuthentication',
+    ]
+}
+```
+
+view.pyに変更
+```python
+# モジュールの追加
+from rest_framework.authentication import SessionAuthentication, BasicAuthentication
+
+from rest_framework.permissions import IsAuthenticated
+
+# クラスに必要な情報を追加
+class ArticleViewSet(viewsets.ReadOnlyModelViewSet):
+    authentication_class = [SessionAuthentication, BasicAuthentication]
+
+    permission_classes = [IsAuthenticated]
+```
+
+APIの発信元がHTTPSでないとログイン情報が盗まれるため`Https://`
+を使用する
+
+しかし、DjangoのアドミンパネルからログインしていないとAPIが見らないためクライアント側では使えない。
+
+したがって、TokenAuthを使用してみる
+
+<br>
+
+## TokenAuthの使用例
+setting.pyの更新
+```python
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework.authentication.TokenAuthentication'
+    ],
+
+    'DEFAULT_PERMISSION_CLASSES': [
+        'rest_framework.permissions.IsAuthenticated'
+    ]
+}
+
+INSTALLED_APPS = [
+    'rest_framework.authtoken'
+]
+```
+
+
+urls.pyにTokenを作成するurlを作成
+```python
+from rest_framework.authentoken import views
+
+urlpatterns = [
+    path('api-token-auth/', views.obtain_auth_token, name='api-token-auth')
+]
+```
+
+このような設定をし、tokenを使いリクエストするとアクセスが可能
