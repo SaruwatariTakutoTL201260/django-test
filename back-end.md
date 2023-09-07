@@ -200,10 +200,13 @@ class EmailAuthBackend(ModelBackend):
 <br>
 
 ## AUTHENTICATION_BACKENDSに追加
+`AUTHENTICATION_BACKENDS`は認証を上から順に行うため、`email`での認証を行う際には不要な認証を削除する
 ```python
 AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
-    'accounts.backends.MyBackend',
+    # 'accounts.backends.MyBackend'を削除
+
+    # emailに関する認証を追加
     'accounts.backends.EmailAuthBackend'
 ]
 ```
