@@ -363,3 +363,73 @@ urlpatterns = [
 ```
 
 このような設定をし、tokenを使いリクエストするとアクセスが可能
+
+
+# REMOTE_USERを使用した外部認証
+通常の認証ではデータベースに保存されている`User`の情報をもとに検証を行うが、外部認証では`REMOTE_USER`経由で受け取る外部認証ソースにより検証を行う
+
+外部認証ソリューションとして
+・IIS + Windows認証
+・Apache + mod_authnz_ldap,CAS,Cosign,WebAuth,mod_auth_sspiなどのSSO(シングルサインオン)ソリューションを使用する
+
+<br>
+
+## SSO(シングルサインオン)
+各サービスにおけるアクセス時に、その都度認証を行うのが一般的だが合理性に欠けると言われている。  
+SSOは連携する全てのサービス間で、一度認証を行うことでアクセスできるようにする仕組みのことである。  
+複数のIDとパスワードの管理をなくすことで利便性を向上させるだけでなく、管理者のコストも減らすことが期待できる。
+
+<br>
+
+## `REMOTE_USER`環境変数を設定する
+
+request.META属性で利用可能で、`django.contrib.auth`にある`RemoteUserMiddleware`や`PersistentRemoteUserMiddleware`,`RemoteUserBackend`クラスを使用してREMOTE_USERを使用できる。
+
+<br>
+
+## 使用例
+
+`RemoteUserBackend`というDjangoのREMOTE_USERを操作するためのメソッドがある
+
+`django.contrib.auth.middleware.AuthenticationMiddleware`のある`MIDDLEWARE`に`django.contrib.auth.middleware.RemoteUserMiddleware`を追加する
+```python
+MIDDLEWARE = [
+    'django.contrib.auth.middleware.AuthenticationMiddleware',
+
+    # 以下を追加
+    'django.contrib.auth.middleware.RemoteUserMiddleware'
+]
+```
+
+<br>
+
+さらに`AUTHENTICATION_BACKENDS`の設定で、`ModelBackend`を`RemoteUserBackend`に書き換える
+```python
+AUTHENTICATION_BACKEND = [
+    # 'django.contrib.auth.backends.ModelBackend',を削除
+
+    # 以下を追加
+    'django.contrib.auth.backends.RemoteUserBackend',
+]
+```
+この変更により`request.META['REMOTE_USER']`のユーザ名を検証する。  
+デフォルトのModelBackendを無効にしたため、`REMOTE_USER`に設定していない値はログインできなくなる。
+
+`RemoteUserBackend`は`ModelBackend`を継承しているため、ModelBackendのパーミッションチェックをそのまま利用できる。  
+最たる例として`is_active=False`のデータは認証を許可されない。  
+
+さらなる条件を与える場合は`RemoteUserBackend`を継承した独自のバックエンドを作成する。
+
+<br>
+
+## REMOTE_USERを使う認証の特徴
+`メリット`としては  
+・外部認証システムを使用可能  
+・複数サービス間で認証の共有が可能  
+`デメリット`としては  
+・外部認証システムの仕様に依存  
+・設定やデバッグが難しい  
+以上の特徴があると思われる
+
+実際に`REMOTE_USER`を使用するか否かは`SSO`を使用するかで決まる。  
+SSOの最大の特徴である複数サービス間での認証の共通化が必要な場合(サービスを複数提供する場合)には`SSO`および`REMOTE_USER`の仕様を検討する
